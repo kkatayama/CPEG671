@@ -36,12 +36,16 @@ scp net*.pcap teddy@172.16.163.128:/home/teddy/
 
 > Use your own username and Kali-VM IP address from Lab 1.
 
+
+
 **2. Create a working folder for each capture's evidence:**
 
 ```bash
 mkdir -p ~/lab2/net1 ~/lab2/net2
 mv ~/net1.pcap ~/lab2/net1/ && mv ~/net2.pcap ~/lab2/net2/
 ```
+
+
 
 **3. Install NetworkMiner (runs on Linux through Mono):**
 
@@ -63,7 +67,7 @@ mono NetworkMiner.exe --noupdatecheck
 
 
 
-**4. Install Docker and pull the ntopng image:**
+**4. Install Docker:**
 
 > NOTE: If your VM is running in `host-only`networking mode, `docker` may not be able to reach their servers, run the following to add DNS records:
 
@@ -76,10 +80,7 @@ sudo apt install -y docker.io
 sudo systemctl enable --now docker
 sudo usermod -aG docker $USER
 newgrp docker
-docker pull ntop/ntopng:stable
 ```
-
-> Kali's own `docker.io` package is all you need. Do not add Docker's Debian repository: on Kali, `lsb_release -cs` returns `kali-rolling`, which that repository does not recognize.
 
 
 
@@ -91,8 +92,6 @@ sudo apt install -y steghide python3-pil python3-numpy
 
 ---
 
-
-
 ### Part 1 - `net1.pcap`
 
 #### Wireshark: read the conversation packet by packet
@@ -100,8 +99,6 @@ sudo apt install -y steghide python3-pil python3-numpy
 **1. In your Kali-VM, open WireShark:**
 
 > `Applications > 09 - Discovery > Network Sniffing > wireshark`
-
-![](../../images/9d89f8423f9bed541c42a0f3d0f868c4dcb19386.png)
 
 
 
@@ -137,15 +134,9 @@ Look for:
 - The `filename=` value inside the form data
 - The server's reply at the bottom of the stream
 
-
-
 **6. Follow the retrieval.** Close the stream window, then follow the `GET /uploads/...` request the same way. What file is requested, and what `Content-Type` does the server return?
 
-
-
 **7. Carve the files out of the traffic.** Go to `File > Export Objects > HTTP`, click **Save All**, and save into `~/lab2/net1/wireshark_export/`.
-
-
 
 **8. Open the exported image** and record what it contains:
 
@@ -155,21 +146,15 @@ file *
 xdg-open <name-of-the-png-file>
 ```
 
-
-
 **9. Hash your evidence** so you can prove later that it was not altered:
 
 ```bash
 sha256sum ~/lab2/net1/net1.pcap ~/lab2/net1/wireshark_export/*
 ```
 
-
-
 #### NetworkMiner: let the tool carve the evidence for you
 
 **10. Load the capture.** In NetworkMiner choose `File > Open` and select `~/lab2/net1/net1.pcap`.
-
-
 
 **11. Work through these tabs and note what each one shows you:**
 
@@ -178,11 +163,7 @@ sha256sum ~/lab2/net1/net1.pcap ~/lab2/net1/wireshark_export/*
 - **Images:** a thumbnail of every picture in the traffic. The stolen content should be visible here without opening anything.
 - **Parameters:** the form fields submitted with the upload, such as `fileToUpload` and `submit`.
 
-
-
 **12. Compare with Wireshark.** Do the file names and sizes match what you exported in step 7? Which tool got you to the evidence faster?
-
-
 
 #### ntopng: look at the traffic as flows on a dashboard
 
@@ -190,16 +171,15 @@ sha256sum ~/lab2/net1/net1.pcap ~/lab2/net1/wireshark_export/*
 
 ```bash
 cd ~/lab2/net1
-docker run -it --rm -p 3000:3000 -v "$PWD":/pcaps ntop/ntopng:stable -i /pcaps/net1.pcap -m "192.168.30.0/24"
+# NOTE: FOR AMD ARCHITECTURE USE:
+docker run -it --rm -p 3000:3000 -v $(pwd)/ntopng.license:/etc/ntopng.license:ro --net=host docker.io/ntop/ntopng:latest -i /pcaps/net1.pcap
+# NOTE: FOR ARM (M-Series Macbooks) USE:
+docker run -it --rm -p 3000:3000 -v $(pwd)/ntopng.license:/etc/ntopng.license:ro --net=host ntop/ntopng_arm64.dev:latest -i /pcaps/net1.pcap
 ```
 
 > ntopng will run in Community mode, which is all this lab needs. Leave this terminal open while you work.
 
-
-
 **14. Open the web interface** at `http://localhost:3000` in Firefox. The first login is `admin` / `admin`, and you will be asked to set a new password.
-
-
 
 **15. Explore and record:**
 
@@ -209,11 +189,7 @@ docker run -it --rm -p 3000:3000 -v "$PWD":/pcaps ntop/ntopng:stable -i /pcaps/n
 
 > Tip: if the live dashboard looks empty, that is normal. The capture is from the past, so use the Hosts and Flows pages instead of the real-time charts.
 
-
-
 **16. Stop ntopng** with `Ctrl + C` in the terminal.
-
-
 
 **17. Reflect:** ntopng cannot show you the stolen picture, so why might this tool be useful?
 
@@ -232,8 +208,6 @@ Compare with `net1.pcap`:
 - Which new protocols appear (look for `DNS`, `TLS` and `QUIC`)?
 - Is there a new IP address outside the local network? How much data came from it?
 
-
-
 **2. Find out where that outside traffic went.** Apply this filter:
 
 ```
@@ -241,8 +215,6 @@ dns || tls.handshake.extensions_server_name
 ```
 
 Which domain names were looked up, and which server name appears in the TLS `Client Hello`? One of them is browser background noise and one of them is not. Which is which?
-
-
 
 **3. Line up the timeline.** Apply this filter:
 
@@ -254,15 +226,9 @@ Write down, in order, when the outside download happened and when the upload to 
 
 > TLS is encrypted, so you cannot see what was downloaded from the outside server. Compare the size of that download (from `Statistics > Conversations`) with the size of the file uploaded a few seconds later.
 
-
-
 **4. Follow the upload and retrieval** (`POST /upload.php` and `GET /uploads/...`) with `Follow > HTTP Stream`, exactly as in Part 1. What is the file name this time?
 
-
-
 **5. Export the HTTP objects** to `~/lab2/net2/wireshark_export/` and open the image. At first glance, does it look like company secrets?
-
-
 
 #### NetworkMiner
 
@@ -271,22 +237,19 @@ Write down, in order, when the outside download happened and when the upload to 
 - How many hosts appear now compared with `net1.pcap`?
 - Which files could NetworkMiner extract, and which traffic could it **not** extract anything from? Why?
 
-
-
 #### ntopng
 
 **7. Run ntopng against the second capture:**
 
 ```bash
 cd ~/lab2/net2
-docker run -it --rm -p 3000:3000 -v "$PWD":/pcaps ntop/ntopng:stable -i /pcaps/net2.pcap -m "192.168.30.0/24"
+# NOTE: FOR AMD ARCHITECTURE USE:
+docker run -it --rm -p 3000:3000 -v $(pwd)/ntopng.license:/etc/ntopng.license:ro --net=host docker.io/ntop/ntopng:latest -i /pcaps/net2.pcap
+# NOTE: FOR ARM (M-Series Macbooks) USE:
+docker run -it --rm -p 3000:3000 -v $(pwd)/ntopng.license:/etc/ntopng.license:ro --net=host ntop/ntopng_arm64.dev:latest -i /pcaps/net2.pcap
 ```
 
-
-
 **8. In the Hosts and Flows pages,** find the outside host, the application ntopng labels it with, and how many bytes it sent. In this capture, the dashboard view makes the outside download stand out right away. Stop ntopng with `Ctrl + C` when done.
-
-
 
 #### Uncover the hidden message
 
@@ -303,8 +266,6 @@ steghide info <name-of-the-png-file>
 ```
 
 Read the error carefully. steghide only works with JPEG, BMP, WAV and AU files, so it cannot have been used on this PNG as it is. That is a useful finding in itself: the actor either converted the picture after hiding the data, or hid the data a different way. Either way, the secret must be stored in the pixels themselves.
-
-
 
 **10. Look at the image's bit planes.** Each pixel stores red, green and blue values. Changing only the lowest bits of those values is invisible to the eye, so hidden text often shows up when you look at each bit on its own. Save this script as `~/lab2/bitplanes.py`:
 
@@ -327,8 +288,6 @@ for name, ch in (("red", 0), ("green", 1), ("blue", 2)):
         print("wrote", out)
 ```
 
-
-
 **11. Run it and flip through the results:**
 
 ```bash
@@ -339,8 +298,6 @@ xdg-open planes/
 Open each `planes/*.png` file. Most will look like static. One of them will show a clear message near the top of the image. Record which channel and bit it was in, and what it says.
 
 > Optional: the Java tool StegSolve does the same thing with arrow keys to cycle through the planes. Install it with `sudo apt install -y default-jre` and run `java -jar stegsolve.jar`.
-
-
 
 **12. Hash your evidence:**
 
