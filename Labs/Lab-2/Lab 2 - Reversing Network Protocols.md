@@ -69,17 +69,23 @@ mono NetworkMiner.exe --noupdatecheck
 
 **4. Install Docker:**
 
-> NOTE: If your VM is running in `host-only`networking mode, `docker` may not be able to reach their servers, run the following to add DNS records:
-
-> ```bash
-> CON_UUID=$(nmcli -t -f UUID con show --active | head -n 1); nmcli con mod "$CON_UUID" ipv4.dns "1.1.1.1 8.8.8.8" && nmcli con up "$CON_UUID"
-> ```
+> Your Kali VM needs Internet access to download the ntopng image. A host-only adapter alone does not provide an Internet route; add a NAT adapter if needed. The workaround script checks DNS when it runs.
 
 ```bash
+sudo apt update
 sudo apt install -y docker.io
 sudo systemctl enable --now docker
-sudo usermod -aG docker $USER
-newgrp docker
+sudo docker info
+```
+
+Download the workaround script to `~/bin`, make it executable, and create the `run-ntopng` command:
+
+```bash
+mkdir -p "$HOME/bin"
+wget -O "$HOME/bin/run-ntopng.sh" \
+  https://raw.githubusercontent.com/kkatayama/CPEG671/refs/heads/main/Labs/Lab-2/run-ntopng.sh
+chmod +x "$HOME/bin/run-ntopng.sh"
+sudo ln -sfn "$HOME/bin/run-ntopng.sh" /usr/local/bin/run-ntopng
 ```
 
 
@@ -171,15 +177,12 @@ sha256sum ~/lab2/net1/net1.pcap ~/lab2/net1/wireshark_export/*
 
 ```bash
 cd ~/lab2/net1
-# NOTE: FOR AMD ARCHITECTURE USE:
-docker run -it --rm -p 3000:3000 -v $(pwd)/ntopng.license:/etc/ntopng.license:ro --net=host docker.io/ntop/ntopng:latest -i /pcaps/net1.pcap
-# NOTE: FOR ARM (M-Series Macbooks) USE:
-docker run -it --rm -p 3000:3000 -v $(pwd)/ntopng.license:/etc/ntopng.license:ro --net=host ntop/ntopng_arm64.dev:latest -i /pcaps/net1.pcap
+run-ntopng net1.pcap
 ```
 
-> ntopng will run in Community mode, which is all this lab needs. Leave this terminal open while you work.
+> The script selects the Kali VM's CPU image, applies the Lua workaround inside a disposable container, and reads the pcap in the current directory. It was confirmed on x86_64 and ARM64 Kali VMs. Leave this terminal open while you work.
 
-**14. Open the web interface** at `http://localhost:3000` in Firefox. The first login is `admin` / `admin`, and you will be asked to set a new password.
+**14. Open the web interface** at `http://localhost:3000` in Kali Firefox. The workaround script disables the login prompt for this localhost-only lab session.
 
 **15. Explore and record:**
 
@@ -243,10 +246,7 @@ Write down, in order, when the outside download happened and when the upload to 
 
 ```bash
 cd ~/lab2/net2
-# NOTE: FOR AMD ARCHITECTURE USE:
-docker run -it --rm -p 3000:3000 -v $(pwd)/ntopng.license:/etc/ntopng.license:ro --net=host docker.io/ntop/ntopng:latest -i /pcaps/net2.pcap
-# NOTE: FOR ARM (M-Series Macbooks) USE:
-docker run -it --rm -p 3000:3000 -v $(pwd)/ntopng.license:/etc/ntopng.license:ro --net=host ntop/ntopng_arm64.dev:latest -i /pcaps/net2.pcap
+run-ntopng net2.pcap
 ```
 
 **8. In the Hosts and Flows pages,** find the outside host, the application ntopng labels it with, and how many bytes it sent. In this capture, the dashboard view makes the outside download stand out right away. Stop ntopng with `Ctrl + C` when done.

@@ -63,23 +63,28 @@ mono NetworkMiner.exe --noupdatecheck
 
 
 
-**4. Install Docker and pull the ntopng image:**
+**4. Install Docker and the ntopng workaround command:**
 
-> NOTE: If your VM is running in `host-only`networking mode, `docker` may not be able to reach their servers, run the following to add DNS records:
-
-> ```bash
-> CON_UUID=$(nmcli -t -f UUID con show --active | head -n 1); nmcli con mod "$CON_UUID" ipv4.dns "1.1.1.1 8.8.8.8" && nmcli con up "$CON_UUID"
-> ```
+> Your Kali VM needs Internet access to download the ntopng image. A host-only adapter alone does not provide an Internet route; add a NAT adapter if needed. The workaround script checks DNS when it runs.
 
 ```bash
+sudo apt update
 sudo apt install -y docker.io
 sudo systemctl enable --now docker
-sudo usermod -aG docker $USER
-newgrp docker
-docker pull ntop/ntopng:stable
+sudo docker info
 ```
 
 > Kali's own `docker.io` package is all you need. Do not add Docker's Debian repository: on Kali, `lsb_release -cs` returns `kali-rolling`, which that repository does not recognize.
+
+Download the workaround script to `~/bin`, make it executable, and create the `run-ntopng` command:
+
+```bash
+mkdir -p "$HOME/bin"
+wget -O "$HOME/bin/run-ntopng.sh" \
+  https://raw.githubusercontent.com/kkatayama/CPEG671/refs/heads/main/Labs/Lab-2/run-ntopng.sh
+chmod +x "$HOME/bin/run-ntopng.sh"
+sudo ln -sfn "$HOME/bin/run-ntopng.sh" /usr/local/bin/run-ntopng
+```
 
 
 
@@ -190,14 +195,14 @@ sha256sum ~/lab2/net1/net1.pcap ~/lab2/net1/wireshark_export/*
 
 ```bash
 cd ~/lab2/net1
-docker run -it --rm -p 3000:3000 -v "$PWD":/pcaps ntop/ntopng:stable -i /pcaps/net1.pcap -m "192.168.30.0/24"
+run-ntopng net1.pcap
 ```
 
-> ntopng will run in Community mode, which is all this lab needs. Leave this terminal open while you work.
+> The script selects the Kali VM's CPU image, applies the Lua workaround inside a disposable container, and reads the pcap in the current directory. It was confirmed on x86_64 and ARM64 Kali VMs. Leave this terminal open while you work.
 
 
 
-**14. Open the web interface** at `http://localhost:3000` in Firefox. The first login is `admin` / `admin`, and you will be asked to set a new password.
+**14. Open the web interface** at `http://localhost:3000` in Kali Firefox. The workaround script disables the login prompt for this localhost-only lab session.
 
 
 
@@ -279,7 +284,7 @@ Write down, in order, when the outside download happened and when the upload to 
 
 ```bash
 cd ~/lab2/net2
-docker run -it --rm -p 3000:3000 -v "$PWD":/pcaps ntop/ntopng:stable -i /pcaps/net2.pcap -m "192.168.30.0/24"
+run-ntopng net2.pcap
 ```
 
 
