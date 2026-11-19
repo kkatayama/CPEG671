@@ -1,5 +1,7 @@
 # Lab 2 - Reversing Network Protocols
 
+
+
 ## Your Task:
 
 You've been brought in as an outside incident responder. A client is concerned that a bad actor is living inside their network and quietly exfiltrating company secrets. Their internal incident response (IR) team has narrowed the suspicious activity down to a single host and captured two short windows of its network traffic: `net1.pcap` and `net2.pcap`.
@@ -7,6 +9,8 @@ You've been brought in as an outside incident responder. A client is concerned t
 The IR team shared one more detail: while they were investigating, they believe the threat actor caught on that his activity was being monitored. He then changed his exfiltration technique to hide what was being delivered in the payload. That second, more careful attempt is the one recorded in `net2.pcap`.
 
 Your job is to review both captures, collect the evidence, recover what was stolen, and then explain what happened in plain language that the client's executives can understand.
+
+
 
 ## Objective
 
@@ -22,11 +26,15 @@ You will analyze `net1.pcap` with all three tools first, then repeat the process
 
 > These packet capture files were originally part of CTF challenges I submitted at 2025 Secure Delaware CTF
 
+
+
 **You are not graded on extracting the secrets.** The steps below walk you through it. You are graded on the written findings at the end, where you describe the activity the way you would to a client's leadership team. In the real world, this is one of the most important skills you can build.
 
-## Lab Steps
 
-### Part 0 - Setup
+
+## Part 0 - Setup
+
+
 
 **1. Download both `net1.pcap` and `net2.pcap` files and transfer them to your Kali-VM:**
 
@@ -66,31 +74,37 @@ mono NetworkMiner.exe --noupdatecheck
 > Use NetworkMiner 2.8 or newer. These captures use the "Linux cooked capture v2" format, which older versions cannot read.
 
 
-
 **4. Install Docker:**
 
-> Your Kali VM needs Internet access to download the ntopng image. A host-only adapter alone does not provide an Internet route; add a NAT adapter if needed. The workaround script checks DNS when it runs.
-
 ```bash
-sudo apt update
 sudo apt install -y docker.io
 sudo systemctl enable --now docker
-sudo docker info
+sudo usermod -aG docker $USER
+newgrp docker
 ```
 
-Download the workaround script to `~/bin`, make it executable, and create the `run-ntopng` command:
+
+
+**5. Download custom ntopng launcher script:**
+
+> My custom script to hopefully work around all the bugs introduced with latest update..
+> [https://github.com/kkatayama/CPEG671/blob/main/Labs/Lab-2/run-ntopng.sh](https://github.com/kkatayama/CPEG671/blob/main/Labs/Lab-2/run-ntopng.sh)
 
 ```bash
-mkdir -p "$HOME/bin"
-wget -O "$HOME/bin/run-ntopng.sh" \
-  https://raw.githubusercontent.com/kkatayama/CPEG671/refs/heads/main/Labs/Lab-2/run-ntopng.sh
-chmod +x "$HOME/bin/run-ntopng.sh"
-sudo ln -sfn "$HOME/bin/run-ntopng.sh" /usr/local/bin/run-ntopng
+# 1. Download Workaround Script:
+wget --content-disposition -P $HOME/bin/run-ntopng.sh https://fattyurl.com/2vkpNCf
+
+# 2. Set Script to Executable:
+chmod +x $HOME/bin/run-ntopng.sh
+
+# 3. Generate system symlink:
+sudo ln -s $HOME/bin/run-ntopng.sh /usr/local/bin/run-ntopng
 ```
 
 
 
-**5. Install the steganography tools you will need for `net2.pcap`:**
+
+**6. Install the steganography tools you will need for `net2.pcap`:**
 
 ```bash
 sudo apt install -y steghide python3-pil python3-numpy
@@ -98,9 +112,15 @@ sudo apt install -y steghide python3-pil python3-numpy
 
 ---
 
-### Part 1 - `net1.pcap`
 
-#### Wireshark: read the conversation packet by packet
+
+## Part 1 - `net1.pcap`
+
+
+
+### Wireshark: read the conversation packet by packet
+
+
 
 **1. In your Kali-VM, open WireShark:**
 
@@ -140,9 +160,15 @@ Look for:
 - The `filename=` value inside the form data
 - The server's reply at the bottom of the stream
 
+
+
 **6. Follow the retrieval.** Close the stream window, then follow the `GET /uploads/...` request the same way. What file is requested, and what `Content-Type` does the server return?
 
+
+
 **7. Carve the files out of the traffic.** Go to `File > Export Objects > HTTP`, click **Save All**, and save into `~/lab2/net1/wireshark_export/`.
+
+
 
 **8. Open the exported image** and record what it contains:
 
@@ -152,15 +178,23 @@ file *
 xdg-open <name-of-the-png-file>
 ```
 
+
+
 **9. Hash your evidence** so you can prove later that it was not altered:
 
 ```bash
 sha256sum ~/lab2/net1/net1.pcap ~/lab2/net1/wireshark_export/*
 ```
 
-#### NetworkMiner: let the tool carve the evidence for you
+
+
+### NetworkMiner: let the tool carve the evidence for you
+
+
 
 **10. Load the capture.** In NetworkMiner choose `File > Open` and select `~/lab2/net1/net1.pcap`.
+
+
 
 **11. Work through these tabs and note what each one shows you:**
 
@@ -169,20 +203,36 @@ sha256sum ~/lab2/net1/net1.pcap ~/lab2/net1/wireshark_export/*
 - **Images:** a thumbnail of every picture in the traffic. The stolen content should be visible here without opening anything.
 - **Parameters:** the form fields submitted with the upload, such as `fileToUpload` and `submit`.
 
+
+
 **12. Compare with Wireshark.** Do the file names and sizes match what you exported in step 7? Which tool got you to the evidence faster?
 
-#### ntopng: look at the traffic as flows on a dashboard
+
+
+### ntopng: look at the traffic as flows on a dashboard
+
+
 
 **13. Run ntopng against the capture file:**
 
 ```bash
 cd ~/lab2/net1
+
+# Hopefully our custom wrapper launches without issue
 run-ntopng net1.pcap
 ```
 
-> The script selects the Kali VM's CPU image, applies the Lua workaround inside a disposable container, and reads the pcap in the current directory. It was confirmed on x86_64 and ARM64 Kali VMs. Leave this terminal open while you work.
+> `ntopng should run in Community mode, which is all this lab needs. Leave this terminal open while you work.
 
-**14. Open the web interface** at `http://localhost:3000` in Kali Firefox. The workaround script disables the login prompt for this localhost-only lab session.
+
+
+**14. Open the web interface** at `http://localhost:3000` in Firefox. 
+
+> Wrapper now disables login.
+>
+> ~~The first login is `admin` / `admin`, and you will be asked to set a new password.~~
+
+
 
 **15. Explore and record:**
 
@@ -192,17 +242,27 @@ run-ntopng net1.pcap
 
 > Tip: if the live dashboard looks empty, that is normal. The capture is from the past, so use the Hosts and Flows pages instead of the real-time charts.
 
+
+
 **16. Stop ntopng** with `Ctrl + C` in the terminal.
+
+
 
 **17. Reflect:** ntopng cannot show you the stolen picture, so why might this tool be useful?
 
 ---
 
-### Part 2 - `net2.pcap`
+
+
+## Part 2 - `net2.pcap`
 
 The IR team believes the threat actor changed his technique for this capture. Repeat the same three-tool process, and pay close attention to what is **different** this time.
 
-#### Wireshark
+
+
+### Wireshark
+
+
 
 **1. Open `~/lab2/net2/net2.pcap`.** Look at `Statistics > Protocol Hierarchy` and `Statistics > Conversations` again.
 
@@ -211,6 +271,8 @@ Compare with `net1.pcap`:
 - Which new protocols appear (look for `DNS`, `TLS` and `QUIC`)?
 - Is there a new IP address outside the local network? How much data came from it?
 
+
+
 **2. Find out where that outside traffic went.** Apply this filter:
 
 ```
@@ -218,6 +280,8 @@ dns || tls.handshake.extensions_server_name
 ```
 
 Which domain names were looked up, and which server name appears in the TLS `Client Hello`? One of them is browser background noise and one of them is not. Which is which?
+
+
 
 **3. Line up the timeline.** Apply this filter:
 
@@ -229,34 +293,54 @@ Write down, in order, when the outside download happened and when the upload to 
 
 > TLS is encrypted, so you cannot see what was downloaded from the outside server. Compare the size of that download (from `Statistics > Conversations`) with the size of the file uploaded a few seconds later.
 
+
+
 **4. Follow the upload and retrieval** (`POST /upload.php` and `GET /uploads/...`) with `Follow > HTTP Stream`, exactly as in Part 1. What is the file name this time?
+
+
 
 **5. Export the HTTP objects** to `~/lab2/net2/wireshark_export/` and open the image. At first glance, does it look like company secrets?
 
-#### NetworkMiner
+
+
+### NetworkMiner
+
+
 
 **6. Load `~/lab2/net2/net2.pcap`** (use `File > Clear GUI` first) and review the Hosts, Files, Images and Parameters tabs.
 
 - How many hosts appear now compared with `net1.pcap`?
 - Which files could NetworkMiner extract, and which traffic could it **not** extract anything from? Why?
 
-#### ntopng
+
+
+### ntopng
+
+
 
 **7. Run ntopng against the second capture:**
 
 ```bash
 cd ~/lab2/net2
+
+# Hopefully this works ...
 run-ntopng net2.pcap
 ```
 
+
+
 **8. In the Hosts and Flows pages,** find the outside host, the application ntopng labels it with, and how many bytes it sent. In this capture, the dashboard view makes the outside download stand out right away. Stop ntopng with `Ctrl + C` when done.
 
-#### Uncover the hidden message
+
+
+### Uncover the hidden message
 
 The image the threat actor uploaded looks innocent. The IR team suspects he used **steghide** to hide the real secret inside it. Let's test that.
 
 > NOTE: You are free to use any tool, including an online stegsolver.  
 > (+5 extra credit "must show evidence of tool being used")
+
+
 
 **9. Try steghide first:**
 
@@ -266,6 +350,8 @@ steghide info <name-of-the-png-file>
 ```
 
 Read the error carefully. steghide only works with JPEG, BMP, WAV and AU files, so it cannot have been used on this PNG as it is. That is a useful finding in itself: the actor either converted the picture after hiding the data, or hid the data a different way. Either way, the secret must be stored in the pixels themselves.
+
+
 
 **10. Look at the image's bit planes.** Each pixel stores red, green and blue values. Changing only the lowest bits of those values is invisible to the eye, so hidden text often shows up when you look at each bit on its own. Save this script as `~/lab2/bitplanes.py`:
 
@@ -288,6 +374,8 @@ for name, ch in (("red", 0), ("green", 1), ("blue", 2)):
         print("wrote", out)
 ```
 
+
+
 **11. Run it and flip through the results:**
 
 ```bash
@@ -299,6 +387,8 @@ Open each `planes/*.png` file. Most will look like static. One of them will show
 
 > Optional: the Java tool StegSolve does the same thing with arrow keys to cycle through the planes. Install it with `sudo apt install -y default-jre` and run `java -jar stegsolve.jar`.
 
+
+
 **12. Hash your evidence:**
 
 ```bash
@@ -308,6 +398,8 @@ sha256sum ~/lab2/net2/net2.pcap ~/lab2/net2/wireshark_export/* ~/lab2/net2/wires
 ---
 
 ## Deliverables - What to Submit to Canvas:
+
+
 
 ### 1. Findings for the Client
 
@@ -319,6 +411,8 @@ Each write-up must answer:
 2. **How did he get the secrets out of the network?**
 3. **How did he try to hide what he was doing?** (For `net1.pcap`, it is fair to say whether he tried to hide it at all.)
 
+
+
 For `net2.pcap`, also explain **what changed** compared with the first capture and why that change matters to the business.
 
 **Writing guidelines**
@@ -329,9 +423,13 @@ For `net2.pcap`, also explain **what changed** compared with the first capture a
 - Leave out tool names, packet numbers and filter syntax. Put those in an optional appendix if you want to show your work.
 - End each write-up with one sentence on what the client should do next.
 
-### Answers to Questions in Part 1 and Part 2
 
-## Grading
+
+### 2. Answers to Questions in Part 1 and Part 2
+
+
+
+### Grading
 
 | Criteria                                                                              | Points  |
 | ------------------------------------------------------------------------------------- | ------- |
