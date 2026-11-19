@@ -18,6 +18,15 @@ case "$(uname -m)" in
   *) printf 'Unsupported Kali VM architecture: %s\n' "$(uname -m)" >&2; exit 2 ;;
 esac
 
+CON_UUID=$(nmcli -t -f UUID con show --active | head -n 1)
+if ! nmcli -g ipv4.dns,IP4.DNS con show "${CON_UUID}" | grep -qE '(1\.1\.1\.1|8\.8\.8\.8)'; then
+    printf 'No valid DNS servers, assigning "1.1.1.1" and "8.8.8.8"\n'
+    nmcli con mod "$CON_UUID" ipv4.dns "1.1.1.1 8.8.8.8"
+    nmcli con up "$CON_UUID"
+else
+    printf 'DNS check passed!\n'
+fi
+
 printf 'Opening %s with %s\n' "$pcap_path" "$image"
 sudo docker run --rm -it -p 127.0.0.1:3000:3000 \
   -v "$pcap_dir":/pcaps:ro \
