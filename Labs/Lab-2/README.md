@@ -1,5 +1,7 @@
 # Lab 2 - Reversing Network Protocols
 
+> **Current ntopng setup:** Follow this Markdown handout and use `run-ntopng.sh`. The PDF in this folder still contains the earlier Docker commands.
+
 ## Your Task:
 
 You've been brought in as an outside incident responder. A client is concerned that a bad actor is living inside their network and quietly exfiltrating company secrets. Their internal incident response (IR) team has narrowed the suspicious activity down to a single host and captured two short windows of its network traffic: `net1.pcap` and `net2.pcap`.
